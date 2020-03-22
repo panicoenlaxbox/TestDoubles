@@ -18,124 +18,135 @@ namespace TestDoubles
         [Fact]
         public void create_a_mock()
         {
-            var foo = new Mock<IFoo>();
-            foo.Setup(f => f.DoSomething(It.IsAny<string>())).Returns(true);
-
-            foo.Object.DoSomething("foo").Should().BeTrue();
+            Mock<IFoo> fooMock = new Mock<IFoo>();
+            IFoo foo = fooMock.Object;
         }
 
         [Fact]
-        public void create_a_mock_for_a_concrete_argument()
+        public void create_a_mock_with_static_method()
         {
-            var foo = new Mock<IFoo>();
-            foo.Setup(f => f.DoSomething("foo")).Returns(true);
-
-            foo.Object.DoSomething("foo").Should().BeTrue();
+            IFoo foo = Mock.Of<IFoo>();
+            Mock<IFoo> fooMock = Mock.Get(foo);
         }
 
         [Fact]
-        public void create_a_mock_for_lazy_evaluated_argument()
+        public void create_a_partial_mock_with_ctor_arguments()
         {
-            var foo = new Mock<IFoo>();
-            foo.Setup(f => f.DoSomething(It.Is<string>((s) => s.Equals("foo", StringComparison.CurrentCultureIgnoreCase)))).Returns(true);
-
-            foo.Object.DoSomething("foo").Should().BeTrue();
+            // Type has to be a class
+            Mock<Qux> quxMock = new Mock<Qux>("quux", 10);
         }
 
         [Fact]
         public void create_a_partial_mock()
         {
-            var bar = new Mock<Bar>();
-
-            bar.Object.Submit().Should().BeFalse();
+            // A partial mock is created from a class
+            Mock<Bar> barMock = new Mock<Bar>();
         }
 
         [Fact]
-        public void create_a_mock_with_loose_mode()
+        public void argument_matching_for_concrete_value()
         {
-            var foo = new Mock<IFoo>();
-            foo.Object.DoSomething("foo");
+            var fooMock = new Mock<IFoo>();
+            fooMock.Setup(f => f.DoSomething("foo")).Returns(true);
+            fooMock.Object.DoSomething("foo").Should().BeTrue();
         }
 
         [Fact]
-        public void create_a_mock_with_strict_mode()
+        public void argument_matching_for_lazy_evaluated_value()
         {
-            var foo = new Mock<IFoo>(MockBehavior.Strict);
-            Action act = () => foo.Object.DoSomething("foo");
-            act.Should().Throw<MockException>().WithMessage("IFoo.DoSomething(\"foo\") invocation failed with mock behavior Strict*");
+            var fooMock = new Mock<IFoo>();
+            fooMock.Setup(f => f.DoSomething(It.Is<string>(arg => arg == "foo"))).Returns(true);
+            fooMock.Object.DoSomething("foo").Should().BeTrue();
         }
 
         [Fact]
-        public void create_a_mock_with_auto_property_tracking()
+        public void create_a_mock_in_loose_mode()
         {
-            var mock = new Mock<IFoo>();
+            // By default, Default that it's the same that Loose
+            Mock<IFoo> fooMock = new Mock<IFoo>();
+            Mock<IFoo> otherFooMock = new Mock<IFoo>(MockBehavior.Loose);
+        }
 
-            mock.SetupProperty(f => f.Name);
-            var foo = mock.Object;
+        [Fact]
+        public void create_a_mock_in_strict_mode()
+        {
+            // By default, a mock is created in Loose mode
+            Mock<IFoo> fooMock = new Mock<IFoo>(MockBehavior.Strict);
+            Action act = () => fooMock.Object.DoSomething("foo");
+            act.Should().Throw<MockException>()
+                .WithMessage("IFoo.DoSomething(\"foo\") invocation failed with mock behavior Strict*");
+        }
+
+        [Fact]
+        public void auto_property_tracking()
+        {
+            Mock<IFoo> fooMock = new Mock<IFoo>();
+            // Without SetupProperty, a property of a mock will not do tracking
+            fooMock.SetupProperty(f => f.Name);
+            IFoo foo = fooMock.Object;
             foo.Name = "foo";
             foo.Name.Should().Be("foo");
         }
 
         [Fact]
-        public void create_a_mock_with_auto_property_tracking_and_initial_value()
+        public void auto_property_tracking_with_initial_value()
         {
-            var mock = new Mock<IFoo>();
-
-            mock.SetupProperty(f => f.Name, "foo");
-            var foo = mock.Object;
+            Mock<IFoo> fooMock = new Mock<IFoo>();
+            fooMock.SetupProperty(f => f.Name, "foo");
+            IFoo foo = fooMock.Object;
             foo.Name.Should().Be("foo");
         }
 
         [Fact]
-        public void create_a_mock_with_all_properties_with_tracking()
+        public void auto_property_tracking_for_all_properties()
         {
-            var mock = new Mock<IFoo>();
-
-            mock.SetupAllProperties();
-            var foo = mock.Object;
+            Mock<IFoo> fooMock = new Mock<IFoo>();
+            fooMock.SetupAllProperties();
+            IFoo foo = fooMock.Object;
             foo.Name = "foo";
             foo.Name.Should().Be("foo");
         }
 
         [Fact]
-        public void create_a_mock_with_property_hierarchy()
+        public void property_hierarchy()
         {
-            var mock = new Mock<IFoo>();
-            mock.Setup(f => f.Bar.Baz.Name).Returns("foo");
-            mock.Object.Bar.Baz.Name.Should().Be("foo");
+            Mock<IFoo> fooMock = new Mock<IFoo>();
+            fooMock.Setup(f => f.Bar.Baz.Name).Returns("foo");
+            fooMock.Object.Bar.Baz.Name.Should().Be("foo");
         }
 
         [Fact]
-        public void create_a_mock_with_default_value_mock()
+        public void generate_mock_instead_default_value()
         {
-            var mock = new Mock<IFoo>
+            Mock<IFoo> fooMock = new Mock<IFoo>
             {
                 DefaultValue = DefaultValue.Mock
             };
-            mock.Object.Bar.Baz.Name.Should().Be(null);
+            fooMock.Object.Bar.Baz.Name.Should().Be(null);
         }
 
         [Fact]
-        public void create_a_mock_and_verify_behavior()
+        public void verify_behavior()
         {
-            var mockStockService = new Mock<IStockService>();
-            var stockService = mockStockService.Object;
-            var mockOrderService = new Mock<OrderService>(stockService);
-            var orserService = mockOrderService.Object;
-            orserService.Place("foo", 1);
-            mockStockService.Verify(s => s.GetStock("foo", 1), Times.Once);
+            Mock<IStockService> stockServiceMock = new Mock<IStockService>();
+            IStockService stockService = stockServiceMock.Object;
+            Mock<OrderService> orderServiceMock = new Mock<OrderService>(stockService);
+            OrderService orderService = orderServiceMock.Object;
+            orderService.Place("foo", 1);
+            stockServiceMock.Verify(s => s.GetStock("foo", 1), Times.Once);
         }
 
         [Fact]
-        public void create_a_mock_and_verify_no_more_calls()
+        public void verify_no_more_calls()
         {
-            var mockStockService = new Mock<IStockService>();
-            var stockService = mockStockService.Object;
-            var mockOrderService = new Mock<OrderService>(stockService);
-            var orserService = mockOrderService.Object;
-            orserService.Place("foo", 1);
-            Action act = () => mockStockService.VerifyNoOtherCalls();
-            act.Should().Throw<MockException>().WithMessage("*This mock failed verification due to the following unverified invocations:*");
+            Mock<IStockService> stockServiceMock = new Mock<IStockService>();
+            IStockService stockService = stockServiceMock.Object;
+            Mock<OrderService> orderServiceMock = new Mock<OrderService>(stockService);
+            OrderService orderService = orderServiceMock.Object;
+            orderService.Place("foo", 1);
+            Action act = () => stockServiceMock.VerifyNoOtherCalls();
+            act.Should().Throw<MockException>()
+                .WithMessage("*This mock failed verification due to the following unverified invocations:*");
         }
     }
 }
