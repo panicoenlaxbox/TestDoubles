@@ -11,8 +11,8 @@
 
         public void Place(string productId, int quantityId)
         {
+            _stockService.GetStock(productId); 
             _stockService.GetStock(productId, quantityId);
-            //_stockService.GetStock(productId);
         }
     }
 }

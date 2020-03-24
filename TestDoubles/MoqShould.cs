@@ -3,6 +3,8 @@ using Moq;
 using FluentAssertions;
 using Xunit.Abstractions;
 using System;
+using System.Linq;
+using Moq.Protected;
 
 namespace TestDoubles
 {
@@ -14,6 +16,8 @@ namespace TestDoubles
         {
             _logger = logger;
         }
+
+        #region create
 
         [Fact]
         public void create_a_mock()
@@ -30,10 +34,14 @@ namespace TestDoubles
         }
 
         [Fact]
-        public void create_a_partial_mock_with_ctor_arguments()
+        public void create_a_mock_with_static_method_and_lambda_in_ctor_for_setup()
         {
-            // Type has to be a class
-            Mock<Qux> quxMock = new Mock<Qux>("quux", 10);
+            // alternative and very odd syntax
+            IFoo foo = Mock.Of<IFoo>(f =>
+                f.DoSomethingStringy(
+                    It.IsAny<string>()
+                    ) == "foo", MockBehavior.Default);
+            foo.DoSomethingStringy("bar").Should().Be("foo");
         }
 
         [Fact]
@@ -44,10 +52,100 @@ namespace TestDoubles
         }
 
         [Fact]
+        public void create_a_partial_mock_with_ctor_arguments()
+        {
+            // Type has to be a class
+            Mock<Qux> quxMock = new Mock<Qux>("quux", 10);
+        }
+
+        #endregion
+
+        #region Callback
+
+        [Fact]
+        public void callback_like_alternative_for_instrumenting_a_mock()
+        {
+            var fooMock = new Mock<IFoo>();
+            var counter = 0;
+            fooMock.Setup(f => f.DoSomething(It.IsAny<string>())).Callback(() => { counter++; }).Returns(true);
+            var foo = fooMock.Object;
+            foo.DoSomething("foo");
+            foo.DoSomething("bar");
+            counter.Should().Be(2);
+        }
+
+        #endregion
+
+        #region Throws
+
+        [Fact]
+        public void throws_exception()
+        {
+            var fooMock = new Mock<IFoo>();
+            fooMock.Setup(f => f.DoSomething(It.IsAny<string>())).Throws<DivideByZeroException>();
+            Action act = () => { fooMock.Object.DoSomething("foo"); };
+            act.Should().Throw<DivideByZeroException>();
+        }
+
+        [Fact]
+        public void throws_a_new_exception()
+        {
+            var fooMock = new Mock<IFoo>();
+            fooMock.Setup(f => f.DoSomething(It.IsAny<string>())).Throws(new DivideByZeroException());
+            Action act = () => { fooMock.Object.DoSomething("foo"); };
+            act.Should().Throw<DivideByZeroException>();
+        }
+
+        #endregion
+
+        #region Callbase
+
+        [Fact]
+        public void callbase()
+        {
+            Mock<Bar> barMock = new Mock<Bar>();
+            // CallBase will call the implementation of a virtual method
+            barMock.Setup(f => f.Submit()).CallBase();
+            barMock.Object.Submit().Should().BeTrue();
+        }
+
+        #endregion
+
+        #region Values in sequence
+
+        [Fact]
+        public void sequence()
+        {
+            var fooMock = new Mock<IFoo>();
+            fooMock.SetupSequence(f => f.DoSomethingStringy(It.IsAny<string>()))
+                .Returns("first")
+                .Throws<DivideByZeroException>()
+                .Returns("third")
+                .Returns(() => "bar");
+            fooMock.Object.DoSomethingStringy("foo").Should().Be("first");
+            Action act = () => fooMock.Object.DoSomethingStringy("foo").Should().Be("second");
+            act.Should().Throw<DivideByZeroException>();
+            fooMock.Object.DoSomethingStringy("foo").Should().Be("third");
+            fooMock.Object.DoSomethingStringy("foo").Should().Be("bar");
+        }
+
+        #endregion
+
+        #region argument_matching
+
+        [Fact]
         public void argument_matching_for_concrete_value()
         {
             var fooMock = new Mock<IFoo>();
             fooMock.Setup(f => f.DoSomething("foo")).Returns(true);
+            fooMock.Object.DoSomething("foo").Should().BeTrue();
+        }
+
+        [Fact]
+        public void argument_matching_for_any_value()
+        {
+            var fooMock = new Mock<IFoo>();
+            fooMock.Setup(f => f.DoSomething(It.IsAny<string>())).Returns(true);
             fooMock.Object.DoSomething("foo").Should().BeTrue();
         }
 
@@ -58,6 +156,10 @@ namespace TestDoubles
             fooMock.Setup(f => f.DoSomething(It.Is<string>(arg => arg == "foo"))).Returns(true);
             fooMock.Object.DoSomething("foo").Should().BeTrue();
         }
+
+        #endregion
+
+        #region Behavior
 
         [Fact]
         public void create_a_mock_in_loose_mode()
@@ -75,6 +177,24 @@ namespace TestDoubles
             Action act = () => fooMock.Object.DoSomething("foo");
             act.Should().Throw<MockException>()
                 .WithMessage("IFoo.DoSomething(\"foo\") invocation failed with mock behavior Strict*");
+        }
+
+        #endregion
+
+        #region Properties
+
+        [Fact]
+        public void setup_property_getter_and_setter()
+        {
+            Mock<IFoo> fooMock = new Mock<IFoo>();
+            // SetupGet and SetupSet allows configure mock, but not persist the value
+            fooMock.SetupGet(f => f.Name).Returns("name");
+            fooMock.SetupSet(f => f.Name = "Sergio").Callback(() =>
+            {
+                _logger.WriteLine("Sergio");
+            }).Verifiable(); // Will be verified with Verify
+            fooMock.Object.Name = "Sergio";
+            fooMock.Verify();
         }
 
         [Fact]
@@ -107,6 +227,48 @@ namespace TestDoubles
             foo.Name.Should().Be("foo");
         }
 
+        #endregion
+
+        #region DefaultValue
+
+        [Fact]
+        public void generate_default_value()
+        {
+            Mock<IFoo> fooMock = new Mock<IFoo>
+            {
+                // Specifies the behavior to use when returning default values for unexpected invocation on loose mocks
+                DefaultValue = DefaultValue.Empty // Empty by default
+            };
+            fooMock.Object.DoSomething("foo").Should().BeFalse();
+        }
+
+        [Fact]
+        public void generate_mock_instead_default_value()
+        {
+            Mock<IFoo> fooMock = new Mock<IFoo>
+            {
+                // if the type can be mocked, do it
+                DefaultValue = DefaultValue.Mock
+            };
+            // these works because Bar and Baz are mocked
+            fooMock.Object.Bar.Baz.Name.Should().Be(null);
+        }
+
+        [Fact]
+        public void generate_mock_instead_default_value_with_custom_value_provider()
+        {
+            Mock<IFoo> fooMock = new Mock<IFoo>
+            {
+                DefaultValueProvider = new CustomValueProvider()
+            };
+            // "foo" is now the default value for string when not it's configured
+            fooMock.Object.DoSomethingStringy("x").Should().Be("foo");
+        }
+
+        #endregion
+
+        #region property hierarchy
+
         [Fact]
         public void property_hierarchy()
         {
@@ -115,38 +277,146 @@ namespace TestDoubles
             fooMock.Object.Bar.Baz.Name.Should().Be("foo");
         }
 
-        [Fact]
-        public void generate_mock_instead_default_value()
-        {
-            Mock<IFoo> fooMock = new Mock<IFoo>
-            {
-                DefaultValue = DefaultValue.Mock
-            };
-            fooMock.Object.Bar.Baz.Name.Should().Be(null);
-        }
+        #endregion
+
+        #region Verify
+
+        // Verify internal behavior of the sut (right calls, right parameters, right order call, etc.), through the expectations configured in the mock object
 
         [Fact]
         public void verify_behavior()
         {
             Mock<IStockService> stockServiceMock = new Mock<IStockService>();
-            IStockService stockService = stockServiceMock.Object;
-            Mock<OrderService> orderServiceMock = new Mock<OrderService>(stockService);
-            OrderService orderService = orderServiceMock.Object;
-            orderService.Place("foo", 1);
+            Mock<OrderService> orderServiceMock = new Mock<OrderService>(stockServiceMock.Object);
+            orderServiceMock.Object.Place("foo", 1); // comment/uncomment
             stockServiceMock.Verify(s => s.GetStock("foo", 1), Times.Once);
         }
 
         [Fact]
-        public void verify_no_more_calls()
+        public void verify_verifiable_behavior()
+        {
+            var mockFoo = new Mock<IFoo>();
+            mockFoo.Setup(foo => foo.DoSomethingStringy("foo")).Returns("foo")
+                .Verifiable(); // Marks the expectation as verifiable, so a call to Verify will check if this expectation was met
+            mockFoo.Object.DoSomethingStringy("foo"); // comment/uncomment
+            // Verifies that all verifiable expectations have been met 
+            mockFoo.Verify();
+        }
+
+        [Fact]
+        public void verify_verifiable_behavior_with_static_method()
+        {
+            var mockFoo = new Mock<IFoo>();
+            mockFoo.Setup(foo => foo.DoSomethingStringy("foo")).Returns("foo")
+                .Verifiable(); // Marks the expectation as verifiable, so a call to Verify will check if this expectation was met
+            mockFoo.Object.DoSomethingStringy("foo"); // comment/uncomment
+            // Verifies that all verifiable expectations have been met 
+            Mock.Verify(mockFoo);
+        }
+
+        [Fact]
+        public void verify_all_behavior_regardless_is_or_not_verifiable()
+        {
+            var mockFoo = new Mock<IFoo>();
+            mockFoo.Setup(foo => foo.DoSomethingStringy("foo")).Returns("foo");
+            mockFoo.Object.DoSomethingStringy("foo"); // comment/uncomment
+            // Verifies that all expectations (with or without verifiable method) have been met 
+            mockFoo.VerifyAll();
+        }
+
+        [Fact]
+        public void verify_all_behavior_regardless_is_or_not_verifiable_with_static_method()
+        {
+            var mockFoo = new Mock<IFoo>();
+            mockFoo.Setup(foo => foo.DoSomethingStringy("foo")).Returns("foo");
+            mockFoo.Object.DoSomethingStringy("foo"); // comment/uncomment
+            // Verifies that all expectations (with or without verifiable method) have been met 
+            Mock.VerifyAll(mockFoo);
+        }
+
+        [Fact]
+        public void verify_no_others_calls()
         {
             Mock<IStockService> stockServiceMock = new Mock<IStockService>();
-            IStockService stockService = stockServiceMock.Object;
-            Mock<OrderService> orderServiceMock = new Mock<OrderService>(stockService);
-            OrderService orderService = orderServiceMock.Object;
-            orderService.Place("foo", 1);
-            Action act = () => stockServiceMock.VerifyNoOtherCalls();
-            act.Should().Throw<MockException>()
-                .WithMessage("*This mock failed verification due to the following unverified invocations:*");
+            Mock<OrderService> orderServiceMock = new Mock<OrderService>(stockServiceMock.Object);
+            orderServiceMock.Object.Place("foo", 1);
+            stockServiceMock.Verify(s => s.GetStock("foo"), Times.Once);
+            stockServiceMock.Verify(s => s.GetStock("foo", 1), Times.Once);
+            // verify that only calls in previous verify methods has been made
+            stockServiceMock.VerifyNoOtherCalls();
         }
+
+        [Fact]
+        public void view_calls_made_to_our_mock_with_no_others_calls_hack()
+        {
+            Mock<IStockService> stockServiceMock = new Mock<IStockService>();
+            Mock<OrderService> orderServiceMock = new Mock<OrderService>(stockServiceMock.Object);
+            orderServiceMock.Object.Place("foo", 1);
+
+            /*
+             This mock failed verification due to the following unverified invocations:
+   IStockService.GetStock("foo")
+   IStockService.GetStock("foo", 1)
+             */
+
+            // verify that only calls in previous verify methods has been made
+            stockServiceMock.VerifyNoOtherCalls();
+        }
+
+        #endregion
+
+        #region Protected
+
+        [Fact]
+        public void configure_protected_method()
+        {
+            var mockDog = new Mock<Dog>();
+            // method is a string
+            // ItExpr instead it
+            mockDog
+                .Protected()
+                .Setup<string>("Sound", ItExpr.IsAny<int>()).Returns("hola");
+            mockDog.Object.DoSomething(3).Should().Be("hola");
+        }
+
+        #endregion
+
+        #region Repositories
+
+        // Central point to create mocks with unified behavior. Furthermore, only one place to verify
+
+        [Fact]
+        public void repositories()
+        {
+            // MockBehavior, CallBase, DefaultValue and DefaultValueProvider for all mocks created with this repository
+
+            MockRepository repository = new MockRepository(MockBehavior.Default);
+            repository.CallBase = false;
+            repository.DefaultValue = DefaultValue.Empty;
+            //repository.DefaultValueProvider = new CustomValueProvider();
+
+            // Create mock from repository, three options
+
+            // Of<T>, LINQ syntax
+            var foo1 = repository
+                .Of<IFoo>()
+                .First(foo => foo.DoSomething(It.IsAny<string>()) == true);
+
+            // OneOf<T> is similar to Mock.Of<T>
+            var foo2 = repository.OneOf<IFoo>();
+            Mock.Get(foo2).Setup(foo => foo.DoSomething(It.IsAny<string>())).Returns(true);
+
+            // Create<T> is similar to new Mock<T>
+            var fooMock = repository.Create<IFoo>();
+            fooMock.Setup(foo => foo.DoSomething(It.IsAny<string>())).Returns(true);
+            var foo3 = fooMock.Object;
+
+            // All mocks can be verified all together
+            //repository.Verify();
+            //repository.VerifyAll();
+            //repository.VerifyNoOtherCalls();
+        }
+
+        #endregion
     }
 }
