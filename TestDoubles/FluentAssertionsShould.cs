@@ -84,7 +84,7 @@ Expected actual to be <2020-03-25 12:30:58>, but found <2020-03-25 12:30:59>.
 Expected value to be greater than 6 because El número 5 no me vale :(, but found 5.             
              */
         }
-
+        
         [Fact]
         public void collection()
         {
@@ -98,6 +98,64 @@ Expected value to be greater than 6 because El número 5 no me vale :(, but foun
                 // better message
                 list.Should().HaveCount(0); // Expected list to contain 0 item(s), but found 5.
             }
+        }
+
+        [Fact]
+        public void exception()
+        {
+            var bar = new Bar();
+            // this syntax does act and assert in one line
+            // Invoking, Awaiting, Enumerating, etc.
+            bar.Invoking(b=>b.DivideByZero()).Should().Throw<DivideByZeroException>();
+
+            // Better, one step at time
+            // Act
+            Action act = () => { bar.DivideByZero(); };
+            // Arrange
+            act.Should().Throw<DivideByZeroException>();
+        }
+
+        [Fact]
+        public void exception_with_message()
+        {
+            var bar = new Bar();
+            Action act = () => { bar.DivideByZero(); };
+            act.Should().Throw<DivideByZeroException>().WithMessage("*divide*");
+        }
+
+        [Fact]
+        public void exception_with_inner_exception()
+        {
+            var bar = new Bar();
+            Action act = () => { bar.DivideByZeroWithInnerException(); };
+            act.Should().Throw<DivideByZeroException>().WithInnerException<ArgumentException>();
+        }
+
+        [Fact]
+        public void exception_with_where()
+        {
+            var bar = new Bar();
+            Action act = () => { bar.DivideByZero(); };
+            // With Where you can investigate properties of the exception
+            act.Should().Throw<DivideByZeroException>().Where(e => e.Message.Contains("divide"));
+        }
+
+        [Fact]
+        public void measure_time_execution_with_action()
+        {
+            var bar = new Bar();
+            Action act = () => bar.Submit("foo");
+            // elegant alternative to StopWatch
+            // assert that called method ended in less that 1 second but with 0.5 of tolerance
+            // if Task, CompleteWithin (waiting and locking thread), CompleteWithinAsync (await)
+            act.ExecutionTime().Should().BeCloseTo(1.Seconds(),0.5.Seconds());
+        }
+
+        [Fact]
+        public void measure_time_execution_without_action()
+        {
+            var bar = new Bar();
+            bar.ExecutionTimeOf(b=>b.Submit("foo")).Should().BeCloseTo(1.Seconds(),0.5.Seconds());
         }
     }
 }

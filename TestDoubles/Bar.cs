@@ -1,4 +1,6 @@
-﻿namespace TestDoubles
+﻿using System;
+
+namespace TestDoubles
 {
     public class Bar
     {
@@ -19,6 +21,16 @@
         public string Submit(string value)
         {
             return value;
+        }
+
+        public void DivideByZero()
+        {
+            throw  new DivideByZeroException();
+        }
+
+        public void DivideByZeroWithInnerException()
+        {
+            throw  new DivideByZeroException(null, new ArgumentException());
         }
     }
 }
