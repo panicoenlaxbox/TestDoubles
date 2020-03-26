@@ -4,6 +4,8 @@ using FluentAssertions;
 using Xunit.Abstractions;
 using System;
 using System.Linq;
+using ClassLibrary1;
+using ClassLibrary2;
 using Moq.Protected;
 
 namespace TestDoubles
@@ -415,6 +417,63 @@ namespace TestDoubles
             //repository.Verify();
             //repository.VerifyAll();
             //repository.VerifyNoOtherCalls();
+        }
+
+        #endregion
+
+        #region BadClass
+
+        [Fact]
+        public void bad_method()
+        {
+            var bcMock = new Mock<BadClass>();
+            // System.NotSupportedException : Unsupported expression: b => b.BadMethod(It.IsAny<string>())
+            // Non-overridable members (here: BadClass.BadMethod) may not be used in setup / verification expressions.
+            bcMock.Setup(b => b.BadMethod(It.IsAny<string>())).Returns("bar");
+        }
+
+        [Fact]
+        public void bad_property()
+        {
+            var bcMock = new Mock<BadClass>();
+            // System.NotSupportedException : Unsupported expression: b => b.BadProperty
+            // Non-overridable members (here: BadClass.get_BadProperty) may not be used in setup / verification expressions.
+            bcMock.SetupProperty(b => b.BadProperty);
+        }
+
+        [Fact]
+        public void solution_via_interface_and_wrapper_class()
+        {
+            // first, extract interface from bad class -> IBadClass
+            //  we assume that we can not implement this new interface in the BadClass
+            // create a new class that acts like a wrapper and implement IBadClass
+            // inject bad class into the new wrapper class and pass-through methods and properties
+            //  -> proxy design pattern
+            // now mock the new interface or the new class (if you have added virtual to members)
+
+            //var bcMock = new Mock<IBadClass>();
+            var bcMock = new Mock<BadClassWrapper>(new BadClass());
+            bcMock.Setup(b => b.BadMethod(It.IsAny<string>())).Returns("bar");
+            bcMock.Object.BadMethod("foo").Should().Be("bar");
+        }
+
+        [Fact]
+        public void solution_for_method_that_returns_an_object_with_protected_internal_constructor()
+        {
+            var bcMock = new Mock<BadClassThatReturnsAClassWithProtectedInternalCtor>();
+            bcMock.Setup(b => b.DoSomething()).Returns(() =>
+            {
+                // BadClassWithInternalCtor.BadClassWithInternalCtor()' is inaccessible due to its protection level
+                //return new BadClassWithProtectedInternalCtor();
+
+                // We hace created a new type that inherits from a class with a protected internal and with polymorphism we can continue working
+                return new FixForBadClassWithProtectedInternalCtor();
+            });
+            // BeAssignableTo OK
+            // BeOfType KO, because FixForBadClassWithProtectedInternalCtor inherits from FixForBadClassWithProtectedInternalCtor
+            var f = bcMock.Object.DoSomething();
+            f.Should().BeAssignableTo<BadClassWithProtectedInternalCtor>();
+            f.Foo(); // Polymorphism
         }
 
         #endregion
