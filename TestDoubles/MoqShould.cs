@@ -487,6 +487,15 @@ namespace TestDoubles
             instance.GetValue().Should().Be("foo");
         }
 
+        [Fact]
+        public void create_object_with_private_ctor_with_reflection_and_using_assembly()
+        {
+            Assembly assembly = Assembly.GetAssembly(typeof(BadClassWithPrivateCtor));
+            object obj = assembly.CreateInstance(typeof(BadClassWithPrivateCtor).FullName, false, BindingFlags.NonPublic | BindingFlags.Instance, null, new[] { "bar" }, null, null);
+            BadClassWithPrivateCtor instance = (BadClassWithPrivateCtor) obj;
+            instance.GetValue().Should().Be("bar");
+        }
+
         #endregion
     }
 }
