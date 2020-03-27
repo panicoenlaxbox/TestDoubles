@@ -4,6 +4,7 @@ using FluentAssertions;
 using Xunit.Abstractions;
 using System;
 using System.Linq;
+using System.Reflection;
 using ClassLibrary1;
 using ClassLibrary2;
 using Moq.Protected;
@@ -474,6 +475,16 @@ namespace TestDoubles
             var f = bcMock.Object.DoSomething();
             f.Should().BeAssignableTo<BadClassWithProtectedInternalCtor>();
             f.Foo(); // Polymorphism
+        }
+
+        [Fact]
+        public void create_object_with_private_ctor_with_reflection()
+        {
+            Type type = typeof(BadClassWithPrivateCtor);
+            ConstructorInfo? constructor = type.GetConstructor(BindingFlags.NonPublic | BindingFlags.Instance, null, new[] {typeof(string)}, null);
+            object obj = constructor.Invoke(new[]{"foo"});
+            BadClassWithPrivateCtor instance = (BadClassWithPrivateCtor)obj;
+            instance.GetValue().Should().Be("foo");
         }
 
         #endregion

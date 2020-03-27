@@ -21,4 +21,16 @@ namespace ClassLibrary2
 
         }
     }
+
+    public class BadClassWithPrivateCtor
+    {
+        private readonly string _value;
+
+        protected internal BadClassWithPrivateCtor(string value)
+        {
+            _value = value;
+        }
+
+        public string GetValue() => _value;
+    }
 }
