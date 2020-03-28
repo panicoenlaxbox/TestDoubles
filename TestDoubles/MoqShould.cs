@@ -497,5 +497,18 @@ namespace TestDoubles
         }
 
         #endregion
+
+        #region Setup overwrites
+
+        [Fact]
+        public void last_setup_is_used()
+        {
+            var fooMock = new Mock<IFoo>();
+            fooMock.Setup(foo=>foo.DoSomethingStringy("foo")).Returns("foo");
+            fooMock.Setup(foo=>foo.DoSomethingStringy("foo")).Returns("bar");
+            fooMock.Object.DoSomethingStringy("foo").Should().Be("bar");
+        }
+
+        #endregion
     }
 }
