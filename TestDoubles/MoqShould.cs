@@ -179,7 +179,7 @@ namespace TestDoubles
             Mock<IFoo> fooMock = new Mock<IFoo>(MockBehavior.Strict);
             Action act = () => fooMock.Object.DoSomething("foo");
             act.Should().Throw<MockException>()
-                .WithMessage("IFoo.DoSomething(\"foo\") invocation failed with mock behavior Strict*");
+                .WithMessage("IFoo.DoSomething(\"foo\") invocation failed with mock behavior Strict. All invocations on the mock must have a corresponding setup.");
         }
 
         #endregion
